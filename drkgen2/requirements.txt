@@ -1,0 +1,7 @@
+Cython==3.0.8
+discord.py==2.3.2
+numpy==1.25.2
+pypresence==4.3.0
+pystyle==1.7
+Requests==2.31.0
+win32security==2.1.0
