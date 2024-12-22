@@ -45,8 +45,6 @@ now = datetime.now()
 curtime = now.strftime("%H:%M")
 author = "Nuhish#4697"
 client_id = "1194593398804451440"
-
-RPC = Presence(client_id)
 invalid = 0
 valid = 0
 
@@ -60,599 +58,9 @@ import platform  # check platform
 import subprocess  # needed for mac device
 import hmac # signature checksum
 import hashlib # signature checksum
+import requests  # https requests
 
-try:
-    if os.name == 'nt':
-        import win32security  # get sid (WIN only)
-    import requests  # https requests
-except ModuleNotFoundError:
-    print("Exception when importing modules")
-    print("Installing necessary modules....")
-    if os.path.isfile("requirements.txt"):
-        os.system("pip3 install -r requirements.txt")
-    else:
-        if os.name == 'nt':
-            os.system("pip3 install pywin32")
-        os.system("pip3 install requests")
-    print("Modules installed!")
-    time.sleep(1.5)
-    os._exit(1)
 
-class api:
-    name = ownerid = secret = version = hash_to_check = ""
-
-    def __init__(self, name, ownerid, secret, version, hash_to_check):
-        if len(ownerid) != 10 and len(secret) != 64:
-            print("Go to Manage Applications on dashboard, copy python code, and replace code in main.py with that")
-            time.sleep(3)
-            os._exit(1)
-    
-        self.name = name
-
-        self.ownerid = ownerid
-
-        self.secret = secret
-
-        self.version = version
-        self.hash_to_check = hash_to_check
-        self.init()
-
-    sessionid = enckey = ""
-    initialized = False
-
-    def init(self):
-        if self.sessionid != "":
-            print("You've already initialized!")
-            time.sleep(3)
-            os._exit(1)
-
-        sent_key = str(uuid4())[:16]
-        
-        self.enckey = sent_key + "-" + self.secret
-        
-        post_data = {
-            "type": "init",
-            "ver": self.version,
-            "hash": self.hash_to_check,
-            "enckey": sent_key,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        if response == "KeyAuth_Invalid":
-            print("The application doesn't exist")
-            time.sleep(3)
-            os._exit(1)
-
-        json = jsond.loads(response)
-
-        if json["message"] == "invalidver":
-            if json["download"] != "":
-                print("New Version Available")
-                download_link = json["download"]
-                os.system(f"start {download_link}")
-                time.sleep(3)
-                os._exit(1)
-            else:
-                print("Invalid Version, Contact owner to add download link to latest app version")
-                time.sleep(3)
-                os._exit(1)
-
-        if not json["success"]:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-        self.sessionid = json["sessionid"]
-        self.initialized = True
-        
-        if json["newSession"]:
-            time.sleep(0.1)
-
-    def register(self, user, password, license, hwid=None):
-        self.checkinit()
-        if hwid is None:
-            hwid = others.get_hwid()
-
-        post_data = {
-            "type": "register",
-            "username": user,
-            "pass": password,
-            "key": license,
-            "hwid": hwid,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            print(json["message"])
-            self.__load_user_data(json["info"])
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def upgrade(self, user, license):
-        self.checkinit()
-
-        post_data = {
-            "type": "upgrade",
-            "username": user,
-            "key": license,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            print(json["message"])
-            print("Please restart program and login")
-            time.sleep(3)
-            os._exit(1)
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def login(self, user, password, hwid=None):
-        self.checkinit()
-        if hwid is None:
-            hwid = others.get_hwid()
-
-        post_data = {
-            "type": "login",
-            "username": user,
-            "pass": password,
-            "hwid": hwid,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            self.__load_user_data(json["info"])
-            print(json["message"])
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def license(self, key, hwid=None):
-        self.checkinit()
-        if hwid is None:
-            hwid = others.get_hwid()
-
-        post_data = {
-            "type": "license",
-            "key": key,
-            "hwid": hwid,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            self.__load_user_data(json["info"])
-            print(json["message"])
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def var(self, name):
-        self.checkinit()
-
-        post_data = {
-            "type": "var",
-            "varid": name,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            return json["message"]
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def getvar(self, var_name):
-        self.checkinit()
-
-        post_data = {
-            "type": "getvar",
-            "var": var_name,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            return json["response"]
-        else:
-            print(f"NOTE: This is commonly misunderstood. This is for user variables, not the normal variables.\nUse keyauthapp.var(\"{var_name}\") for normal variables");
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def setvar(self, var_name, var_data):
-        self.checkinit()
-
-        post_data = {
-            "type": "setvar",
-            "var": var_name,
-            "data": var_data,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            return True
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def ban(self):
-        self.checkinit()
-
-        post_data = {
-            "type": "ban",
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            return True
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def file(self, fileid):
-        self.checkinit()
-
-        post_data = {
-            "type": "file",
-            "fileid": fileid,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if not json["success"]:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-        return binascii.unhexlify(json["contents"])
-
-    def webhook(self, webid, param, body = "", conttype = ""):
-        self.checkinit()
-
-        post_data = {
-            "type": "webhook",
-            "webid": webid,
-            "params": param,
-            "body": body,
-            "conttype": conttype,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            return json["message"]
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)
-
-    def check(self):
-        self.checkinit()
-
-        post_data = {
-            "type": "check",
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-        if json["success"]:
-            return True
-        else:
-            return False
-
-    def checkblacklist(self):
-        self.checkinit()
-        hwid = others.get_hwid()
-
-        post_data = {
-            "type": "checkblacklist",
-            "hwid": hwid,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-        if json["success"]:
-            return True
-        else:
-            return False
-
-    def log(self, message):
-        self.checkinit()
-
-        post_data = {
-            "type": "log",
-            "pcuser": os.getenv('username'),
-            "message": message,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        self.__do_request(post_data)
-
-    def fetchOnline(self):
-        self.checkinit()
-
-        post_data = {
-            "type": "fetchOnline",
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            if len(json["users"]) == 0:
-                return None
-            else:
-                return json["users"]
-        else:
-            return None
-            
-    def fetchStats(self):
-        self.checkinit()
-
-        post_data = {
-            "type": "fetchStats",
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            self.__load_app_data(json["appinfo"])
-            
-    def chatGet(self, channel):
-        self.checkinit()
-
-        post_data = {
-            "type": "chatget",
-            "channel": channel,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            return json["messages"]
-        else:
-            return None
-
-    def chatSend(self, message, channel):
-        self.checkinit()
-
-        post_data = {
-            "type": "chatsend",
-            "message": message,
-            "channel": channel,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            return True
-        else:
-            return False
-
-    def checkinit(self):
-        if not self.initialized:
-            print("Initialize first, in order to use the functions")
-            time.sleep(3)
-            os._exit(1)
-
-    def changeUsername(self, username):
-        self.checkinit()
-
-        post_data = {
-            "type": "changeUsername",
-            "newUsername": username,
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            print("Successfully changed username")
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)  
-
-    def logout(self):
-        self.checkinit()
-
-        post_data = {
-            "type": "logout",
-            "sessionid": self.sessionid,
-            "name": self.name,
-            "ownerid": self.ownerid
-        }
-
-        response = self.__do_request(post_data)
-
-        json = jsond.loads(response)
-
-        if json["success"]:
-            print("Successfully logged out")
-            time.sleep(3)
-            os._exit(1)
-        else:
-            print(json["message"])
-            time.sleep(3)
-            os._exit(1)         
-            
-    def __do_request(self, post_data):
-        try:
-            response = requests.post(
-                "https://keyauth.win/api/1.2/", data=post_data, timeout=10
-            )
-            
-            key = self.secret if post_data["type"] == "init" else self.enckey
-            if post_data["type"] == "log": return response.text
-                        
-            client_computed = hmac.new(key.encode('utf-8'), response.text.encode('utf-8'), hashlib.sha256).hexdigest()
-            
-            signature = response.headers["signature"]
-            
-            if not hmac.compare_digest(client_computed, signature):
-                print("Signature checksum failed. Request was tampered with or session ended most likely.")
-                print("Response: " + response.text)
-                time.sleep(3)
-                os._exit(1) 
-            
-            return response.text
-        except requests.exceptions.Timeout:
-            print("Request timed out. Server is probably down/slow at the moment")
-
-    class application_data_class:
-        numUsers = numKeys = app_ver = customer_panel = onlineUsers = ""
-
-    class user_data_class:
-        username = ip = hwid = expires = createdate = lastlogin = subscription = subscriptions = ""
-
-    user_data = user_data_class()
-    app_data = application_data_class()
-
-    def __load_app_data(self, data):
-        self.app_data.numUsers = data["numUsers"]
-        self.app_data.numKeys = data["numKeys"]
-        self.app_data.app_ver = data["version"]
-        self.app_data.customer_panel = data["customerPanelLink"]
-        self.app_data.onlineUsers = data["numOnlineUsers"]
-
-    def __load_user_data(self, data):
-        self.user_data.username = data["username"]
-        self.user_data.ip = data["ip"]
-        self.user_data.hwid = data["hwid"] or "N/A"
-        self.user_data.expires = data["subscriptions"][0]["expiry"]
-        self.user_data.createdate = data["createdate"]
-        self.user_data.lastlogin = data["lastlogin"]
-        self.user_data.subscription = data["subscriptions"][0]["subscription"]
-        self.user_data.subscriptions = data["subscriptions"]
-
-
-class others:
-    @staticmethod
-    def get_hwid():
-        if platform.system() == "Linux":
-            with open("/etc/machine-id") as f:
-                hwid = f.read()
-                return hwid
-        elif platform.system() == 'Windows':
-            winuser = os.getlogin()
-            sid = win32security.LookupAccountName(None, winuser)[0]  # You can also use WMIC (better than SID, some users had problems with WMIC)
-            hwid = win32security.ConvertSidToStringSid(sid)
-            return hwid
-            '''
-            cmd = subprocess.Popen(
-                "wmic useraccount where name='%username%' get sid",
-                stdout=subprocess.pip3E,
-                shell=True,
-            )
-
-            (suppost_sid, error) = cmd.communicate()
-
-            suppost_sid = suppost_sid.split(b"\n")[1].strip()
-
-            return suppost_sid.decode()
-
-            ^^ HOW TO DO IT USING WMIC
-            '''
-        elif platform.system() == 'Darwin':
-            output = subprocess.Popen("ioreg -l | grep IOPlatformSerialNumber", stdout=subprocess.PIPE, shell=True).communicate()[0]
-            serial = output.decode().split('=', 1)[1].replace(' ', '')
-            hwid = serial[1:-2]
-            return hwid
 
 # Global Variables 2nd Time
 now = datetime.now()
@@ -664,119 +72,6 @@ RPC = Presence(client_id)
 invalid = 0
 valid = 0
 
-
-# KEY AUTH
-def getchecksum():
-    md5_hash = hashlib.md5()
-    file = open(''.join(sys.argv), "rb")
-    md5_hash.update(file.read())
-    digest = md5_hash.hexdigest()
-    return digest
-
-keyauthapp = api(
-    name = "DrkGEN 2.0",
-    ownerid = "W1eEwQCCGT",
-    secret = "6571944b4695f42f358777468b0e6355561725ca5f88937f695561374359a6fa",
-    version = "1.0",
-    hash_to_check = getchecksum()
-)
-RPC_CHECK = ""
-
-def keyauthtry():
-    try:
-        with open("./assets/discordrpc.txt", 'r+') as DISCORD_RPC_FILE:
-            answer = DISCORD_RPC_FILE.read()
-            if answer == "NO":
-                pass
-            elif answer == "YES":
-                RPC.connect()
-
-                RPC.update(
-                    state="In Login Page - V. 0.857 BETA",
-                    large_image="icon",
-                    buttons=[{"label": "Check Project out!", "url": "https://discord.gg/9y9HCzawBe"}]
-        )
-            else:
-                print("Discord error noticed, contact drk in a support ticket.")
-                time.sleep(5)
-                quit()
-        print(Colorate.Horizontal(Colors.green_to_red, """
-V. 0.857 CLOSED BETA                   discord.gg/9y9HCzawBe            
-  _      ____   _____ _____ _   _   _____        _____ ______ 
- | |    / __ \ / ____|_   _| \ | | |  __ \ /\   / ____|  ____|
- | |   | |  | | |  __  | | |  \| | | |__) /  \ | |  __| |__   
- | |   | |  | | | |_ | | | | . ` | |  ___/ /\ \| | |_ |  __|  
- | |___| |__| | |__| |_| |_| |\  | | |  / ____ \ |__| | |____ 
- |______\____/ \_____|_____|_| \_| |_| /_/    \_\_____|______|
-                                                              
-                                                                            """))
-        print(f'''{Colors.white}                {Colors.blue}    [ LOGIN PAGE ]{Colors.white}''')
-        print("""\n\n
-[1] Login
-[2] Register [License key required]
-              
-[3] Troubleshooting [Discord Errors etc]
-              
-[4] Upgrade   
-[5] Quit
-              
-        """)
-        ans = input("Select Option: ")
-        if ans == "1":
-            user = input('Provide username: ')
-            password = input('Provide password: ')
-            keyauthapp.login(user, password)     
-        elif ans == "2":
-            user = input('Provide username: ')
-            password = input('Provide password: ')
-            license = input('Provide License: ')
-            keyauthapp.register(user, password, license)
-        elif ans == "3":
-            clearcmd()
-            print("""
-Do you have discord installed on this machine?
-                
-[1] Yes
-[2] No
-
-[3] Back""")
-            dcans = input(f"\nOption\n{Colors.red}>{Colors.white}")
-
-            if dcans == "1":
-                clearcmd()
-                print("Open a new support ticket and send all the reuqired details!\n")
-                back()
-                clearcmd()
-                keyauthtry()
-            elif dcans == "2":
-                with open("./assets/discordrpc.txt", "w+") as file:
-                        file.write("NO")
-                        file.close()
-                clearcmd()
-                time.sleep(0.3)
-                print(f"{Colors.green}[+]{Colors.white} Sucessfully Turned of Discord Rich Presence.{Colors.white}")
-                time.sleep(0.5)
-                back()
-                clearcmd()
-                keyauthtry()
-            elif dcans == "3":
-                clearcmd()
-                keyauthtry()
-        elif ans == "4":
-            user = input('Provide username: ')
-            license = input('Provide License: ')
-            keyauthapp.upgrade(user, license)
-        elif ans == "5":
-            clearcmd()
-            quit()
-        else:
-            print("\nInvalid option")
-            sleep(1)
-            clearcmd()
-            keyauthtry()
-    except KeyboardInterrupt:
-        clearcmd()
-        keyauthtry()
 # Defines
 def clearcmd():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -806,8 +101,7 @@ def settings():
     ███████║███████╗   ██║      ██║   ██║██║ ╚████║╚██████╔╝███████║
     ╚══════╝╚══════╝   ╚═╝      ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝                                                                                                                                                                                                                                              
     """))
-    print(f"""      Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"""
     [1] UI Settings [{Colors.red}UNDER DEVELOPMENT{Colors.white}]
     [2] License key [{Colors.red}UNDER DEVELOPMENT{Colors.white}]
@@ -864,8 +158,7 @@ def discordrpcchange():
     ███████║███████╗   ██║      ██║   ██║██║ ╚████║╚██████╔╝███████║
     ╚══════╝╚══════╝   ╚═╝      ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝                                                                                                                                                                                                                                              
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"""
     [1] Enable Rich Presence
     [2] Disable Rich Presence
@@ -926,8 +219,7 @@ def timesettings():
     ███████║███████╗   ██║      ██║   ██║██║ ╚████║╚██████╔╝███████║
     ╚══════╝╚══════╝   ╚═╝      ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝                                                                                                                                                                                                                                              
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"""
     [1] 10 Seconds delay
     [2] 30 Seconds delay
@@ -1018,8 +310,7 @@ def clearcache():
  ██████╔╝██║  ██║██║  ██╗    ╚██████╔╝███████╗██║ ╚████║    ███████╗██╗╚██████╔╝
  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝    ╚══════╝╚═╝ ╚═════╝                        
                                                                           """))
-    print(f'''                                 Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  ''')
+
     print("""
     [1] Clear Cache (THIS WILL REMOVE ALL YOUR GENERATED CODES!)
 
@@ -1094,8 +385,7 @@ def options():
  ██████╔╝██║  ██║██║  ██╗    ╚██████╔╝███████╗██║ ╚████║    ███████╗██╗╚██████╔╝
  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝    ╚══════╝╚═╝ ╚═════╝                        
                                                                           """))
-    print(f'''                                 Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  ''')
+
     print("""
     [1] Generators
     [2] Checkers
@@ -1267,8 +557,7 @@ def tokengen():
     | | (_) |   <  __/ | | | |__| | |____| |\  |
     |_|\___/|_|\_\___|_| |_|\_____|______|_| \_|                                                                                                                    
 """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-""")
+
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nDiscord Token Format is: {Colors.blue}[26 characters].[6 characters].[38 characters]")
@@ -1302,8 +591,7 @@ def checkers():
     ██████╔╝██║  ██║██║  ██╗╚██████╗██║  ██║███████╗╚██████╗██║  ██╗███████╗██║  ██║███████║
     ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝                                                                                                                                                                                                                                               
     """))
-    print(f"""                         Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+
     print("""
     [1] DrkUDP (Single Connection)
     [2] DrkTCP (Proxies Required)
@@ -1341,8 +629,7 @@ def credits():
     ╚██████╗██║  ██║███████╗██████╔╝██║   ██║   ███████║██╔╝   ███████║╚██████╔╝██║     ██║     ╚██████╔╝██║  ██║   ██║   
      ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝ ╚═╝   ╚═╝   ╚══════╝╚═╝    ╚══════╝ ╚═════╝ ╚═╝     ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝                                                                                                                                                              
     """))
-    print(f"""                                 Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+
 
     print(f"""
     {Colors.green}DrkGEN 1.0 & DrkGEN 2.0{Colors.purple}
@@ -1411,8 +698,7 @@ def generators():
  ██████╔╝██║  ██║██║  ██╗    ╚██████╔╝███████╗██║ ╚████║    ███████╗██╗╚██████╔╝
  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝    ╚══════╝╚═╝ ╚═════╝                        
                                                                           """))
-    print(f'''                                                         Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  ''')
+
     print(f"""
     [1] INTER Amazon Giftcard Generator [{Colors.green}STABLE{Colors.white}] {Colors.yellow}[Region Chocies]{Colors.white}
     [2] EU Netflix Giftcard Generator [{Colors.green}STABLE{Colors.white}]
@@ -1507,8 +793,7 @@ def nordvpngen():
  | |\  | (_) | | | (_| |  \  /  | |    | |\  | | |__| |  __/ | | |
  |_| \_|\___/|_|  \__,_|   \/   |_|    |_| \_|  \_____|\___|_| |_|                                                                                                                     
 """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-""")
+
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nNordVPN Activation Code Format is: {Colors.blue}NVXREVXXXXXXXXXXXXXXXXXXX")
@@ -1540,8 +825,7 @@ def nintendosection():
  ██████╔╝██║  ██║██║  ██╗    ╚██████╔╝███████╗██║ ╚████║    ███████╗██╗╚██████╔╝
  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝    ╚══════╝╚═╝ ╚═════╝                        
                                                                           """))
-    print(f'''                                                         Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  ''')
+
     
     print("""[1] UK Nintendo Giftcard Generator
 [2] Under Development (Lack of Details)
@@ -1593,8 +877,7 @@ def nintendo1():
  | |\  | | | | | ||  __/ | | | (_| | (_) | | |__| |  __/ | | |
  |_| \_|_|_| |_|\__\___|_| |_|\__,_|\___/   \_____|\___|_| |_|                                                                                                                        
 """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-""")
+
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nNintendo UK Giftcard Format is: {Colors.blue}C0XXXXXXXXXXXXXX")
@@ -1625,8 +908,7 @@ def discordsection():
  ██████╔╝██║  ██║██║  ██╗    ╚██████╔╝███████╗██║ ╚████║    ███████╗██╗╚██████╔╝
  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝    ╚══════╝╚═╝ ╚═════╝                        
                                                                           """))
-    print(f'''                                                         Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  ''')
+
     
     print("""[1] Nitro Gift Generator
 [2] Discord Token Generator
@@ -1673,8 +955,7 @@ def discordgift():
  |_____/|_|___/\___\___/|_|  \__,_|  \_____|_|_|  \__|
                                                                                              
 """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-""")
+
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\Discord Gift Link Format is: {Colors.blue}https://discord.com/gifts/GIFT_CARD_HERE\n")
@@ -1719,8 +1000,7 @@ def uber():
       #####  #####  ###### #    #     #####  ####### #     # 
                                                                                                                          
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nUber Giftcard Format is: {Colors.blue}XXXXXXXXXXX\n")
@@ -1781,8 +1061,7 @@ def amazon():
         ██║  ██║██║ ╚═╝ ██║██║  ██║███████╗╚██████╔╝██║ ╚████║    ╚██████╔╝███████╗██║ ╚████║
         ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                   
         """))
-        print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-    """)
+
         print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
         time.sleep(1)
         print(f"\nAmazon Giftcard Format is: {Colors.blue}XXXX-XXXXXX-XXXXX\n")
@@ -1842,8 +1121,7 @@ def amazonUS():
     ██║  ██║██║ ╚═╝ ██║██║  ██║███████╗╚██████╔╝██║ ╚████║    ╚██████╔╝███████╗██║ ╚████║
     ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                   
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-""")
+
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nAmazon Giftcard Format is: {Colors.blue}XXXX-XXXXX-XXXXXX\n")
@@ -1887,8 +1165,7 @@ def amazonCA():
     ██║  ██║██║ ╚═╝ ██║██║  ██║███████╗╚██████╔╝██║ ╚████║    ╚██████╔╝███████╗██║ ╚████║
     ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                   
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-""")
+
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nAmazon Giftcard Format is: {Colors.blue}XXXX-XXXXXX-XXXX\n")
@@ -1932,8 +1209,7 @@ def amazonUK():
     ██║  ██║██║ ╚═╝ ██║██║  ██║███████╗╚██████╔╝██║ ╚████║    ╚██████╔╝███████╗██║ ╚████║
     ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                   
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-""")
+
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nAmazon Giftcard Format is: {Colors.blue}XXXX-XXXXXX-XXXXX\n")
@@ -1976,8 +1252,7 @@ def netflix():
     ██║ ╚████║███████╗   ██║   ██║     ███████╗██║██╔╝ ██╗    ╚██████╔╝███████╗██║ ╚████║
     ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝     ╚══════╝╚═╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                                                                                            
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nNetflix Giftcard Format is: {Colors.blue}XXXXXXXXXXX\n")
@@ -2019,8 +1294,7 @@ def roblox():
     ██║  ██║╚██████╔╝██████╔╝███████╗╚██████╔╝██╔╝ ██╗    ╚██████╔╝███████╗██║ ╚████║
     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                                                                                                                                                                       
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nRoblox Giftcard Format is: {Colors.blue}RXXXXXXXXXXXXXXX\n")
@@ -2061,8 +1335,7 @@ def apple():
     ██║  ██║██║     ██║     ███████╗███████╗    ╚██████╔╝███████╗██║ ╚████║
     ╚═╝  ╚═╝╚═╝     ╚═╝     ╚══════╝╚══════╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                                                                                                                                                                                                                                   
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nApple Giftcard Format is: {Colors.blue}XXXXXXXXXXXXXXXX\n")
@@ -2104,8 +1377,7 @@ def steam():
     ███████║   ██║   ███████╗██║  ██║██║ ╚═╝ ██║    ╚██████╔╝███████╗██║ ╚████║
     ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                                                                                                                                                                                                                                                                                               
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nSteam Giftcard Format is: {Colors.blue}XXXXX-XXXXX-XXXXX\n")
@@ -2162,8 +1434,7 @@ def googleplay1():
     ██║   ██║██║   ██║██║   ██║██║   ██║██║     ██╔══╝╚════╝██╔═══╝     ██║   ██║██╔══╝  ██║╚██╗██║
     ╚██████╔╝╚██████╔╝╚██████╔╝╚██████╔╝███████╗███████╗    ██║         ╚██████╔╝███████╗██║ ╚████║                                                                                                                                                                                                                                                                                                                                                                                                                                       
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nGoogle Play Giftcard Format is: {Colors.blue}XXXXXXXXXXXXXXXXXXXX\n")
@@ -2204,8 +1475,7 @@ def googleplay2():
     ██║   ██║██║   ██║██║   ██║██║   ██║██║     ██╔══╝╚════╝██╔═══╝     ██║   ██║██╔══╝  ██║╚██╗██║
     ╚██████╔╝╚██████╔╝╚██████╔╝╚██████╔╝███████╗███████╗    ██║         ╚██████╔╝███████╗██║ ╚████║                                                                                                                                                                                                                                                                                                                                                                                                                                       
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\nGoogle Play Giftcard Format is: {Colors.blue}XXXXXXXXXXXXXXXXXXXXX\n")
@@ -2247,8 +1517,7 @@ def spotify():
     ███████║██║     ╚██████╔╝   ██║   ██║██║        ██║       ╚██████╔╝███████╗██║ ╚████║
     ╚══════╝╚═╝      ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝        ╚═════╝ ╚══════╝╚═╝  ╚═══╝                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}
-  """)
+    
     print(f"{Colors.blue}[*]{Colors.white} Setting Up...")
     time.sleep(1)
     print(f"\Spotify Giftcard Format is: {Colors.blue}XXX XXX XXX Xx\n")
@@ -2313,7 +1582,6 @@ def udpart():
        >====>    >====>     >=>           >===>   >=>    >=> >=======>    >===>   >=>     >=> 
                                                                                            
     """))
-    print(f"""Logged in as {Colors.blue}{keyauthapp.user_data.username}{Colors.white}""")
 
 def amazon_udp_check():
     with open("./assets/discordrpc.txt", 'r+') as DISCORD_RPC_FILE:
@@ -2541,8 +1809,6 @@ def roblox_udp_check():
 # Main Code
 def main():
     try:
-        clearcmd()
-        keyauthtry()
         clearcmd()
         with open("./assets/skipintro.txt", 'r+') as INTRO_SKIP_FILE:
             answer = INTRO_SKIP_FILE.read()
